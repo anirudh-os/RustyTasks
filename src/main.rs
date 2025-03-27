@@ -1,133 +1,116 @@
-use std::{io};
-use std::io::Read;
+use std::io::{Write, stdout, stdin, BufWriter};
+use std::fmt;
 
-// Struct representing a task in the to-do list
 struct Task {
-    id: usize,         // Unique identifier for the task
-    name: String,      // Name/description of the task
-    status: bool,      // Status of the task (true for done, false for not done)
+    id: usize,
+    name: String,
+    status: bool,
+}
+
+impl fmt::Display for Task {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let status_symbol = if self.status { "✔ Done" } else { "✘ Not Done" };
+        write!(f, "{:<5} {:<30} {}", self.id, self.name, status_symbol)
+    }
 }
 
 impl Task {
-    // Adds a new task to the todo list
-    // Takes a mutable reference to the vector of tasks and the task name
     fn add_task(todo: &mut Vec<Task>, name: String) {
-        // Create a new Task with an id based on the last task in the vector or 1 if the vector is empty
         let task = Task {
             id: todo.last().map(|todo| todo.id + 1).unwrap_or(1),
             name,
-            status: false, // New tasks are not done by default
+            status: false,
         };
-        // Push the new task onto the todo list
         todo.push(task);
     }
 
-    // Removes a task from the todo list by its id
-    // Takes a mutable reference to the vector of tasks and the task id
     fn remove_task(todo: &mut Vec<Task>, id: usize) {
-        // Retain all tasks whose id is not the one passed in (effectively removes the task)
         todo.retain(|task| task.id != id);
     }
 
-    // Marks a task as done by its id
-    // Takes a mutable reference to the vector of tasks and the task id
     fn mark_done(todo: &mut Vec<Task>, id: usize) {
-        // Iterate over the tasks and find the task with the matching id
-        for task in todo.iter_mut() { // Use iter_mut() to get a mutable reference
+        for task in todo.iter_mut() {
             if task.id == id {
-                task.status = true; // Mark the task as done
+                task.status = true;
             }
         }
     }
 
-    // Lists all tasks in the todo list
-    // Takes a reference to the vector of tasks
     fn list_tasks(todo: &Vec<Task>) {
-        // Print the header for the task list
-        println!("ID\tName\tStatus");
-        // Iterate over the tasks and print each task's details
+        let stdout = stdout();
+        let mut writer = BufWriter::new(stdout.lock());
+
+        writeln!(writer, "\n\n{:<5} {:<30} {}", "ID", "Name", "Status").unwrap();
+        writeln!(writer, "{}", "-".repeat(50)).unwrap();
+
         for task in todo {
-            println!("{} {} {}", task.id, task.name, task.status);
+            writeln!(writer, "{}", task).unwrap();
         }
+
+        writer.flush().unwrap();
     }
 }
 
 fn main() {
-    // Initialize an empty vector to store tasks
     let mut todo: Vec<Task> = Vec::new();
 
-    // Start an infinite loop to interact with the user
     loop {
-        // Display menu options to the user
-        println!("1. Add a Task");
+        println!("\n1. Add a Task");
         println!("2. Remove a Task");
         println!("3. Mark a Task as done");
         println!("4. List all Tasks");
         println!("5. Quit");
-        println!("Enter your choice:");
+        print!("Enter your choice: ");
+        stdout().flush().unwrap();
 
-        // Read the user's choice
         let mut input = String::new();
-        io::stdin().read_line(&mut input).expect("Failed to read line.");
+        stdin().read_line(&mut input).expect("Failed to read line.");
 
-        // Try to parse the choice as a number (usize)
         let choice: usize = match input.trim().parse() {
-            Ok(num) => num, // If successful, store the number
+            Ok(num) => num,
             Err(_) => {
-                // If input is invalid, print an error and continue the loop
                 println!("Invalid input. Please enter a number.");
                 continue;
             }
         };
 
-        // Match on the user's choice to perform the corresponding action
         match choice {
-            // Option 1: Add a task
             1 => {
-                println!("Enter task name:");
+                print!("Enter task name: ");
+                stdout().flush().unwrap();
                 let mut task_name = String::new();
-                io::stdin().read_line(&mut task_name).expect("Failed to read line.");
-                let task_name = task_name.trim().to_string(); // Trim newline and convert to String
-                Task::add_task(&mut todo, task_name); // Call add_task function
+                stdin().read_line(&mut task_name).expect("Failed to read line.");
+                Task::add_task(&mut todo, task_name.trim().to_string());
             }
-            // Option 2: Remove a task by its ID
             2 => {
-                println!("Enter task ID to remove:");
+                print!("Enter task ID to remove: ");
+                stdout().flush().unwrap();
                 let mut input = String::new();
-                io::stdin().read_line(&mut input).expect("Failed to read line.");
-                let id: usize = match input.trim().parse() {
-                    Ok(num) => num, // Parse the task ID
-                    Err(_) => {
-                        println!("Invalid input. Please enter a valid ID.");
-                        continue;
-                    }
-                };
-                Task::remove_task(&mut todo, id); // Call remove_task function
+                stdin().read_line(&mut input).expect("Failed to read line.");
+                if let Ok(id) = input.trim().parse() {
+                    Task::remove_task(&mut todo, id);
+                } else {
+                    println!("Invalid input. Please enter a valid ID.");
+                }
             }
-            // Option 3: Mark a task as done by its ID
             3 => {
-                println!("Enter task ID to mark as done:");
+                print!("Enter task ID to mark as done: ");
+                stdout().flush().unwrap();
                 let mut input = String::new();
-                io::stdin().read_line(&mut input).expect("Failed to read line.");
-                let id: usize = match input.trim().parse() {
-                    Ok(num) => num, // Parse the task ID
-                    Err(_) => {
-                        println!("Invalid input. Please enter a valid ID.");
-                        continue;
-                    }
-                };
-                Task::mark_done(&mut todo, id); // Call mark_done function
+                stdin().read_line(&mut input).expect("Failed to read line.");
+                if let Ok(id) = input.trim().parse() {
+                    Task::mark_done(&mut todo, id);
+                } else {
+                    println!("Invalid input. Please enter a valid ID.");
+                }
             }
-            // Option 4: List all tasks
             4 => {
-                Task::list_tasks(&todo); // Call list_tasks function to display all tasks
+                Task::list_tasks(&todo);
             }
-            // Option 5: Quit the program
             5 => {
-                println!("Thank you for using the todo list!"); // Thank the user and exit the loop
+                println!("Thank you for using the to-do list!");
                 break;
             }
-            // Catch-all for invalid choices
             _ => {
                 println!("Invalid choice. Please try again.");
             }
