@@ -4,3 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+automerge = "0.6.0"
+serde = "1.0.219"
+clap = { version = "4.5.32", features = ["derive"] }

@@ -1,59 +1,63 @@
-use std::io::{Write, stdout, stdin, BufWriter};
-use std::fmt;
+mod crdt;
+mod tasks;
+mod cli;
 
-struct Task {
-    id: usize,
-    name: String,
-    status: bool,
-}
-
-impl fmt::Display for Task {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let status_symbol = if self.status { "✔ Done" } else { "✘ Not Done" };
-        write!(f, "{:<5} {:<30} {}", self.id, self.name, status_symbol)
-    }
-}
-
-impl Task {
-    fn add_task(todo: &mut Vec<Task>, name: String) {
-        let task = Task {
-            id: todo.last().map(|todo| todo.id + 1).unwrap_or(1),
-            name,
-            status: false,
-        };
-        todo.push(task);
-    }
-
-    fn remove_task(todo: &mut Vec<Task>, id: usize) {
-        todo.retain(|task| task.id != id);
-    }
-
-    fn mark_done(todo: &mut Vec<Task>, id: usize) {
-        for task in todo.iter_mut() {
-            if task.id == id {
-                task.status = true;
-            }
-        }
-    }
-
-    fn list_tasks(todo: &Vec<Task>) {
-        let stdout = stdout();
-        let mut writer = BufWriter::new(stdout.lock());
-
-        writeln!(writer, "\n\n{:<5} {:<30} {}", "ID", "Name", "Status").unwrap();
-        writeln!(writer, "{}", "-".repeat(50)).unwrap();
-
-        for task in todo {
-            writeln!(writer, "{}", task).unwrap();
-        }
-
-        writer.flush().unwrap();
-    }
-}
+use clap::Parser;
+use cli::{Cli, Commands};
+use tasks::Task;
+use crdt::CrdtToDoList;
+use std::io::{stdin, stdout, Write};
 
 fn main() {
-    let mut todo: Vec<Task> = Vec::new();
+    let cli = Cli::parse();
+    let mut crdt = match CrdtToDoList::new(Some("autocommit_doc.automerge")) {
+        Ok(doc) => doc,
+        Err(e) => {
+            eprintln!("Failed to initialize CRDT document: {e}");
+            std::process::exit(1);
+        }
+    };
 
+    let mut todo: Vec<Task> = crdt.task_entries.iter().map(|e| e.task.clone()).collect();
+
+    match &cli.command {
+        Some(Commands::Interactive) | None => {
+            run_interactive(&mut crdt, &mut todo);
+        }
+
+        Some(Commands::Add { name }) => {
+            Task::add_task(&mut todo, name.trim().to_string());
+            match crdt.add_task(todo.last().unwrap()) {
+                Ok(()) => {},
+                Err(e) => println!("An error \"{}\" has occurred!", e),
+            };
+        }
+
+        Some(Commands::Remove { index }) => {
+            Task::remove_task(&mut todo, *index);
+            match crdt.remove_task(*index) {
+                Ok(()) => {},
+                Err(e) => println!("An error \"{}\" has occurred!", e),
+            };
+        }
+
+        Some(Commands::Done { index }) => {
+            Task::mark_done(&mut todo, *index);
+            match crdt.mark_done(*index) {
+                Ok(()) => {},
+                Err(e) => println!("An error \"{}\" has occurred!", e),
+            };
+        }
+
+        Some(Commands::List) => {
+            Task::list_tasks(&todo);
+        }
+    }
+
+    crdt.save_to_file("autocommit_doc.automerge").unwrap()
+}
+
+fn run_interactive(crdt: &mut CrdtToDoList, todo: &mut Vec<Task>) {
     loop {
         println!("\n1. Add a Task");
         println!("2. Remove a Task");
@@ -80,15 +84,26 @@ fn main() {
                 stdout().flush().unwrap();
                 let mut task_name = String::new();
                 stdin().read_line(&mut task_name).expect("Failed to read line.");
-                Task::add_task(&mut todo, task_name.trim().to_string());
+                Task::add_task(todo, task_name.trim().to_string());
+                if let Some(task) = todo.last() {
+                    match crdt.add_task(task) {
+                        Ok(()) => {},
+                        Err(e) => println!("An error \"{}\" has occurred!", e),
+                    };
+                }
+
             }
             2 => {
                 print!("Enter task ID to remove: ");
                 stdout().flush().unwrap();
                 let mut input = String::new();
                 stdin().read_line(&mut input).expect("Failed to read line.");
-                if let Ok(id) = input.trim().parse() {
-                    Task::remove_task(&mut todo, id);
+                if let Ok(index) = input.trim().parse::<usize>() {
+                    Task::remove_task(todo, index);
+                    match crdt.remove_task(index) {
+                        Ok(()) => {},
+                        Err(e) => println!("An error \"{}\" has occurred!", e),
+                    };
                 } else {
                     println!("Invalid input. Please enter a valid ID.");
                 }
@@ -98,16 +113,21 @@ fn main() {
                 stdout().flush().unwrap();
                 let mut input = String::new();
                 stdin().read_line(&mut input).expect("Failed to read line.");
-                if let Ok(id) = input.trim().parse() {
-                    Task::mark_done(&mut todo, id);
+                if let Ok(index) = input.trim().parse::<usize>() {
+                    Task::mark_done(todo, index);
+                    match crdt.mark_done(index) {
+                        Ok(()) => {},
+                        Err(e) => println!("An error \"{}\" has occurred!", e),
+                    };
                 } else {
                     println!("Invalid input. Please enter a valid ID.");
                 }
             }
             4 => {
-                Task::list_tasks(&todo);
+                Task::list_tasks(todo);
             }
             5 => {
+                crdt.save_to_file("autocommit_doc.automerge").unwrap();
                 println!("Thank you for using the to-do list!");
                 break;
             }
