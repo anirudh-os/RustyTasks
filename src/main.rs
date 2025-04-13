@@ -1,6 +1,8 @@
 mod crdt;
 mod tasks;
 mod cli;
+mod network;
+mod peer;
 
 use clap::Parser;
 use cli::{Cli, Commands};
