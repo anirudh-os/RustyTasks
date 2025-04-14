@@ -3,12 +3,15 @@ mod tasks;
 mod cli;
 mod network;
 mod peer;
+mod identity;
 
 use clap::Parser;
 use cli::{Cli, Commands};
 use tasks::Task;
 use crdt::CrdtToDoList;
 use std::io::{stdin, stdout, Write};
+use serde::de::Unexpected::Str;
+use crate::network::connect_to_peer;
 
 fn main() {
     let cli = Cli::parse();
@@ -65,7 +68,8 @@ fn run_interactive(crdt: &mut CrdtToDoList, todo: &mut Vec<Task>) {
         println!("2. Remove a Task");
         println!("3. Mark a Task as done");
         println!("4. List all Tasks");
-        println!("5. Quit");
+        println!("5. Connect to a Peer");
+        println!("6. Quit");
         print!("Enter your choice: ");
         stdout().flush().unwrap();
 
@@ -94,7 +98,7 @@ fn run_interactive(crdt: &mut CrdtToDoList, todo: &mut Vec<Task>) {
                     };
                 }
 
-            }
+            },
             2 => {
                 print!("Enter task ID to remove: ");
                 stdout().flush().unwrap();
@@ -109,7 +113,7 @@ fn run_interactive(crdt: &mut CrdtToDoList, todo: &mut Vec<Task>) {
                 } else {
                     println!("Invalid input. Please enter a valid ID.");
                 }
-            }
+            },
             3 => {
                 print!("Enter task ID to mark as done: ");
                 stdout().flush().unwrap();
@@ -124,18 +128,30 @@ fn run_interactive(crdt: &mut CrdtToDoList, todo: &mut Vec<Task>) {
                 } else {
                     println!("Invalid input. Please enter a valid ID.");
                 }
-            }
+            },
             4 => {
                 Task::list_tasks(todo);
-            }
+            },
             5 => {
+                println!("Enter the IP Address of the Peer: ");
+                let mut input = String::new();
+                std::io::stdin().read_line(&mut input).expect("Failed to read the input!");
+                let ip = input.trim().to_string();
+
+                println!("Enter the port number: ");
+                std::io::stdin().read_line(&mut input).expect("Failed to read the input!");
+                let port = input.trim().parse::<u16>().expect("Failed to parse the port number!");
+
+                connect_to_peer(ip, port, peer_id, public_key);
+            },
+            6 => {
                 crdt.save_to_file("autocommit_doc.automerge").unwrap();
                 println!("Thank you for using the to-do list!");
                 break;
-            }
+            },
             _ => {
                 println!("Invalid choice. Please try again.");
-            }
+            },
         }
     }
 }

@@ -8,3 +8,7 @@ automerge = "0.6.0"
 serde = "1.0.219"
 clap = { version = "4.5.32", features = ["derive"] }
 tokio = { version = "1.44.1", features = ["full"] }
+serde_json = "1.0.140"
+base64 = "0.22.1"
+rand = "0.9.0"
+ed25519-dalek = "2.1.1"
