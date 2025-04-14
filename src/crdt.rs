@@ -26,7 +26,6 @@ impl CrdtToDoList {
                     AutoCommit::load(&bytes)?
                 },
                 Err(_) => {
-                    println!("No existing data found at {}, starting with a new document.", path);
                     AutoCommit::new()
                 }
             }

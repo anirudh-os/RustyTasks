@@ -10,10 +10,13 @@ use cli::{Cli, Commands};
 use tasks::Task;
 use crdt::CrdtToDoList;
 use std::io::{stdin, stdout, Write};
-use serde::de::Unexpected::Str;
+use base64::Engine;
+use base64::engine::general_purpose;
+use identity::Identity;
 use crate::network::connect_to_peer;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let cli = Cli::parse();
     let mut crdt = match CrdtToDoList::new(Some("autocommit_doc.automerge")) {
         Ok(doc) => doc,
@@ -27,7 +30,7 @@ fn main() {
 
     match &cli.command {
         Some(Commands::Interactive) | None => {
-            run_interactive(&mut crdt, &mut todo);
+            run_interactive(&mut crdt, &mut todo).await;
         }
 
         Some(Commands::Add { name }) => {
@@ -62,7 +65,11 @@ fn main() {
     crdt.save_to_file("autocommit_doc.automerge").unwrap()
 }
 
-fn run_interactive(crdt: &mut CrdtToDoList, todo: &mut Vec<Task>) {
+async fn run_interactive(crdt: &mut CrdtToDoList, todo: &mut Vec<Task>) {
+    let identity = Identity::generate();
+    let peer_id = identity.derive_peer_id();
+    let public_key = identity.public_key;
+
     loop {
         println!("\n1. Add a Task");
         println!("2. Remove a Task");
@@ -135,14 +142,10 @@ fn run_interactive(crdt: &mut CrdtToDoList, todo: &mut Vec<Task>) {
             5 => {
                 println!("Enter the IP Address of the Peer: ");
                 let mut input = String::new();
-                std::io::stdin().read_line(&mut input).expect("Failed to read the input!");
+                stdin().read_line(&mut input).expect("Failed to read the input!");
                 let ip = input.trim().to_string();
 
-                println!("Enter the port number: ");
-                std::io::stdin().read_line(&mut input).expect("Failed to read the input!");
-                let port = input.trim().parse::<u16>().expect("Failed to parse the port number!");
-
-                connect_to_peer(ip, port, peer_id, public_key);
+                connect_to_peer(ip.clone(), peer_id.clone(), public_key).await.expect(&format!("Connection to {} could not be established", ip));
             },
             6 => {
                 crdt.save_to_file("autocommit_doc.automerge").unwrap();

@@ -16,10 +16,10 @@ struct Hello {
 
 pub async fn connect_to_peer(
     target_ip: String,
-    port: u16,
     local_peer_id: PeerId,
     public_key: [u8; 32],
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let port = 58008;
     let address = format!("{}:{}", target_ip, port);
     let socket_addr: SocketAddr = address.parse()?;
 
