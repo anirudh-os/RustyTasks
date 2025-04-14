@@ -4,16 +4,21 @@ mod cli;
 mod network;
 mod peer;
 mod identity;
+mod sync;
 
+use std::collections::HashMap;
 use clap::Parser;
 use cli::{Cli, Commands};
 use tasks::Task;
 use crdt::CrdtToDoList;
+use sync::SyncState;
 use std::io::{stdin, stdout, Write};
+use std::sync::Arc;
 use base64::Engine;
-use base64::engine::general_purpose;
+use tokio::sync::Mutex;
 use identity::Identity;
-use crate::network::connect_to_peer;
+use network::{connect_to_peer, connections};
+use peer::SharedPeers;
 
 #[tokio::main]
 async fn main() {
@@ -35,7 +40,7 @@ async fn main() {
 
         Some(Commands::Add { name }) => {
             Task::add_task(&mut todo, name.trim().to_string());
-            match crdt.add_task(todo.last().unwrap()) {
+            match crdt.add_task_offline(todo.last().unwrap()) {
                 Ok(()) => {},
                 Err(e) => println!("An error \"{}\" has occurred!", e),
             };
@@ -66,9 +71,18 @@ async fn main() {
 }
 
 async fn run_interactive(crdt: &mut CrdtToDoList, todo: &mut Vec<Task>) {
+    let shared_peers: SharedPeers = Arc::new(Mutex::new(HashMap::new()));
+    let peers_for_network = shared_peers.clone();
+    match connections(peers_for_network).await {
+        Ok(()) => {},
+        Err(e) => println!("No peers are available:{}!", e),
+    }
+
     let identity = Identity::generate();
     let peer_id = identity.derive_peer_id();
     let public_key = identity.public_key;
+
+    let mut sync_state = SyncState::new();
 
     loop {
         println!("\n1. Add a Task");
@@ -99,12 +113,11 @@ async fn run_interactive(crdt: &mut CrdtToDoList, todo: &mut Vec<Task>) {
                 stdin().read_line(&mut task_name).expect("Failed to read line.");
                 Task::add_task(todo, task_name.trim().to_string());
                 if let Some(task) = todo.last() {
-                    match crdt.add_task(task) {
+                    match crdt.add_task(task, &mut sync_state, &shared_peers) {
                         Ok(()) => {},
                         Err(e) => println!("An error \"{}\" has occurred!", e),
                     };
                 }
-
             },
             2 => {
                 print!("Enter task ID to remove: ");

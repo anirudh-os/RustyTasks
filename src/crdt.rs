@@ -3,6 +3,9 @@ use std::fs::File;
 use std::io::{Read, Write};
 use automerge::{AutoCommit, AutomergeError, ObjId, ObjType, ReadDoc, ScalarValue, Value, ROOT};
 use automerge::transaction::Transactable;
+use crate::network::send_changes_to_peer;
+use crate::peer::SharedPeers;
+use crate::sync::SyncState;
 use crate::tasks::Task;
 
 pub struct CrdtToDoList {
@@ -59,7 +62,7 @@ impl CrdtToDoList {
         Ok(todo_list)
     }
 
-    pub fn add_task(&mut self, task: &Task) -> Result<(), AutomergeError>{
+    pub fn add_task_offline(&mut self, task: &Task) -> Result<(), AutomergeError>{
         let index = self.doc.length(&self.list_id);
         let task_obj = self.doc.insert_object(&self.list_id, index, ObjType::Map)?;
         self.doc.put(&task_obj, "name", task.name.clone())?;
@@ -71,6 +74,22 @@ impl CrdtToDoList {
                 status: task.status,
             },
         });
+        Ok(())
+    }
+
+    pub async fn add_task(&mut self, task: &Task, sync_state: &mut SyncState, shared_peers: &SharedPeers) -> Result<(), AutomergeError>{
+        let index = self.doc.length(&self.list_id);
+        let task_obj = self.doc.insert_object(&self.list_id, index, ObjType::Map)?;
+        self.doc.put(&task_obj, "name", task.name.clone())?;
+        self.doc.put(&task_obj, "status", task.status)?;
+        self.task_entries.push(TaskEntry {
+            obj_id: task_obj,
+            task: Task {
+                name: task.name.clone(),
+                status: task.status,
+            },
+        });
+        self.send_changes(sync_state, shared_peers).await;
         Ok(())
     }
 
@@ -133,5 +152,21 @@ impl CrdtToDoList {
         let bytes = self.doc.save();
         file.write_all(&bytes)?;
         Ok(())
+    }
+
+    async fn send_changes(&mut self, sync_state: &mut SyncState, shared_peers: &SharedPeers) {
+        let heads = self.doc.get_heads();
+        for head in heads {
+            sync_state.add_received_change(head);
+        }
+        let have_deps = sync_state.get_have_deps();
+        let changes = self.doc.get_changes(&have_deps);
+        let peers = shared_peers.lock().unwrap();
+        for (peer_id, peer) in peers.iter() {
+            if let Err(e) = send_changes_to_peer(peer, &changes).await {
+                eprintln!("Failed to send changes to {}: {}", peer_id.id, e);
+            }
+        }
+
     }
 }

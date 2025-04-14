@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::{Mutex};
 use automerge::sync::Message;
 
 pub struct Peer {

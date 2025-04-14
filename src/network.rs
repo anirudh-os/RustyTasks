@@ -1,5 +1,6 @@
 use std::str;
 use std::net::SocketAddr;
+use automerge::Change;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -14,11 +15,7 @@ struct Hello {
     public_key: String, // base64 encoded 32-byte key
 }
 
-pub async fn connect_to_peer(
-    target_ip: String,
-    local_peer_id: PeerId,
-    public_key: [u8; 32],
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn connect_to_peer(target_ip: String, local_peer_id: PeerId, public_key: [u8; 32]) -> Result<(), Box<dyn std::error::Error>> {
     let port = 58008;
     let address = format!("{}:{}", target_ip, port);
     let socket_addr: SocketAddr = address.parse()?;
@@ -124,4 +121,18 @@ async fn handle_connection(mut socket: TcpStream, address: SocketAddr, shared_pe
             eprintln!("Failed to read from socket {}: {}", address, e);
         }
     }
+}
+
+pub async fn send_changes_to_peer(peer: &Peer, changes: &[Change]) -> Result<(), Box<dyn std::error::Error>> {
+    let mut stream = TcpStream::connect(peer.address).await?;
+
+    let raw_changes: Vec<Vec<u8>> = changes
+        .iter()
+        .map(|c| c.raw_bytes().to_vec())
+        .collect();
+
+    let serialized = serde_json::to_vec(&raw_changes)?;
+    stream.write_all(&serialized).await?;
+
+    Ok(())
 }
