@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::{Mutex};
-use automerge::sync::Message;
 
 pub struct Peer {
     pub peer_id: PeerId,
@@ -16,4 +15,4 @@ pub struct PeerId {
 }
 
 pub type SharedPeers = Arc<Mutex<HashMap<PeerId, Peer>>>;
-type SharedPeerSenders = Arc<Mutex<HashMap<PeerId, tokio::sync::mpsc::Sender<Message>>>>;
+//type SharedPeerSenders = Arc<Mutex<HashMap<PeerId, tokio::sync::mpsc::Sender<Message>>>>;

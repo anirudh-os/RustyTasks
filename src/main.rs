@@ -34,7 +34,7 @@ async fn main() {
 
     match &cli.command {
         Some(Commands::Interactive) | None => {
-            run_interactive(&mut crdt, &mut todo).await;
+            run_interactive(&mut todo).await;
         }
 
         Some(Commands::Add { name }) => {
@@ -69,19 +69,26 @@ async fn main() {
     crdt.save_to_file("autocommit_doc.automerge").unwrap()
 }
 
-async fn run_interactive(crdt: &mut CrdtToDoList, todo: &mut Vec<Task>) {
+async fn run_interactive(todo: &mut Vec<Task>) {
+    let crdt = Arc::new(Mutex::new(
+        CrdtToDoList::new(Some("autocommit_doc.automerge"))
+            .expect("Failed to load CRDT document"),
+    ));
+    let crdt_for_network = crdt.clone();
+
     let shared_peers: SharedPeers = Arc::new(Mutex::new(HashMap::new()));
     let peers_for_network = shared_peers.clone();
+
+    let sync_state = Arc::new(Mutex::new(SyncState::new()));
+    let sync_state_peers = sync_state.clone();
     tokio::spawn(async move {
-        if let Err(e) = connections(peers_for_network).await {
+        if let Err(e) = connections(peers_for_network, crdt_for_network, sync_state_peers).await {
             println!("No peers are available: {}!", e);
         }
     });
     let identity = Identity::generate();
     let peer_id = identity.derive_peer_id();
     let public_key = identity.public_key;
-
-    let mut sync_state = SyncState::new();
 
     loop {
         println!("\n1. Add a Task");
@@ -111,11 +118,16 @@ async fn run_interactive(crdt: &mut CrdtToDoList, todo: &mut Vec<Task>) {
                 let mut task_name = String::new();
                 stdin().read_line(&mut task_name).expect("Failed to read line.");
                 Task::add_task(todo, task_name.trim().to_string());
+
                 if let Some(task) = todo.last() {
-                    match crdt.add_task(task, &mut sync_state, &shared_peers).await {
+                    let mut crdt_guard = crdt.lock().await;
+                    let mut sync = sync_state.lock().await;
+                    let peers = &shared_peers;
+
+                    match crdt_guard.add_task(task, &mut sync, &peers).await {
                         Ok(()) => {},
                         Err(e) => println!("An error \"{}\" has occurred!", e),
-                    };
+                    }
                 }
             },
             2 => {
@@ -123,12 +135,17 @@ async fn run_interactive(crdt: &mut CrdtToDoList, todo: &mut Vec<Task>) {
                 stdout().flush().unwrap();
                 let mut input = String::new();
                 stdin().read_line(&mut input).expect("Failed to read line.");
+
                 if let Ok(index) = input.trim().parse::<usize>() {
                     Task::remove_task(todo, index);
-                    match crdt.remove_task(index) {
+                    let mut crdt_guard = crdt.lock().await;
+                    let mut sync = sync_state.lock().await;
+                    let peers = &shared_peers;
+
+                    match crdt_guard.remove_task(index, &mut sync, &peers).await {
                         Ok(()) => {},
                         Err(e) => println!("An error \"{}\" has occurred!", e),
-                    };
+                    }
                 } else {
                     println!("Invalid input. Please enter a valid ID.");
                 }
@@ -138,12 +155,17 @@ async fn run_interactive(crdt: &mut CrdtToDoList, todo: &mut Vec<Task>) {
                 stdout().flush().unwrap();
                 let mut input = String::new();
                 stdin().read_line(&mut input).expect("Failed to read line.");
+
                 if let Ok(index) = input.trim().parse::<usize>() {
                     Task::mark_done(todo, index);
-                    match crdt.mark_done(index) {
+                    let mut crdt_guard = crdt.lock().await;
+                    let mut sync = sync_state.lock().await;
+                    let peers = &shared_peers;
+
+                    match crdt_guard.mark_done(index, &mut sync, &peers).await {
                         Ok(()) => {},
-                        Err(e) => println!("An error \"{}\" has occurred!", e),
-                    };
+                        Err(e) => { println!("An error \"{}\" has occurred!", e) },
+                    }
                 } else {
                     println!("Invalid input. Please enter a valid ID.");
                 }
@@ -157,16 +179,16 @@ async fn run_interactive(crdt: &mut CrdtToDoList, todo: &mut Vec<Task>) {
                 stdin().read_line(&mut input).expect("Failed to read the input!");
                 let ip = input.trim().to_string();
 
-
+                let peer_id_clone = peer_id.clone();
 
                 tokio::spawn(async move {
-                    if let Err(e) = connect_to_peer(ip.clone(), peer_id.clone(), public_key).await     {
+                    if let Err(e) = connect_to_peer(ip.clone(), peer_id_clone, public_key).await     {
                         println!("No peers are available: {}!", e);
                     }
                 });
             },
             6 => {
-                crdt.save_to_file("autocommit_doc.automerge").unwrap();
+                crdt.lock().await.save_to_file("autocommit_doc.automerge").unwrap();
                 println!("Thank you for using the to-do list!");
                 break;
             },

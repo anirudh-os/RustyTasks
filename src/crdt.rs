@@ -138,8 +138,10 @@ impl CrdtToDoList {
         self.doc.delete(&self.list_id, index)
     }
 
-    pub fn remove_task(&mut self, index:usize) -> Result<(), AutomergeError>{
-        self.doc.delete(&self.list_id, index)
+    pub async fn remove_task(&mut self, index:usize, sync_state: &mut SyncState, shared_peers: &SharedPeers) -> Result<(), AutomergeError>{
+        self.doc.delete(&self.list_id, index)?;
+        self.send_changes(sync_state, shared_peers).await;
+        Ok(())
     }
 
     pub fn mark_done_offline(&mut self, index: usize) -> Result<(), AutomergeError> {
@@ -151,13 +153,15 @@ impl CrdtToDoList {
         self.doc.put(task_id, "status", true)
     }
 
-    pub fn mark_done(&mut self, index: usize) -> Result<(), AutomergeError> {
+    pub async fn mark_done(&mut self, index: usize, sync_state: &mut SyncState, shared_peers: &SharedPeers) -> Result<(), AutomergeError> {
         if index >= self.task_entries.len() {
             println!("Invalid index: {}", index);
             return Ok(());
         }
         let task_id = &self.task_entries[index].obj_id;
-        self.doc.put(task_id, "status", true)
+        self.doc.put(task_id, "status", true)?;
+        self.send_changes(sync_state, shared_peers).await;
+        Ok(())
     }
 
     pub fn save_to_file(&mut self, path: &str) -> std::io::Result<()> {
@@ -184,4 +188,29 @@ impl CrdtToDoList {
         }
 
     }
+    pub async fn apply_changes_from_bytes(
+        &mut self,
+        raw_changes: Vec<Vec<u8>>,
+        sync_state: &mut SyncState
+    ) {
+        for bytes in raw_changes {
+            match Change::from_bytes(bytes) {
+                Ok(change) => {
+                    if let Err(e) = self.doc.apply_changes(vec![change.clone()]) {
+                        eprintln!("Failed to apply change: {}", e);
+                        continue;
+                    }
+                    sync_state.add_received_change(change.hash());
+                }
+                Err(e) => {
+                    eprintln!("Failed to decode change bytes: {}", e);
+                }
+            }
+        }
+
+        if let Err(e) = self.load_tasks() {
+            eprintln!("Failed to reload task entries: {}", e);
+        }
+    }
+
 }
