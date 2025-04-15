@@ -14,7 +14,6 @@ use crdt::CrdtToDoList;
 use sync::SyncState;
 use std::io::{stdin, stdout, Write};
 use std::sync::Arc;
-use base64::Engine;
 use tokio::sync::Mutex;
 use identity::Identity;
 use network::{connect_to_peer, connections};
@@ -113,7 +112,7 @@ async fn run_interactive(crdt: &mut CrdtToDoList, todo: &mut Vec<Task>) {
                 stdin().read_line(&mut task_name).expect("Failed to read line.");
                 Task::add_task(todo, task_name.trim().to_string());
                 if let Some(task) = todo.last() {
-                    match crdt.add_task(task, &mut sync_state, &shared_peers) {
+                    match crdt.add_task(task, &mut sync_state, &shared_peers).await {
                         Ok(()) => {},
                         Err(e) => println!("An error \"{}\" has occurred!", e),
                     };

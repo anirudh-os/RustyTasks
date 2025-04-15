@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::fs::File;
 use std::io::{Read, Write};
-use automerge::{AutoCommit, AutomergeError, ObjId, ObjType, ReadDoc, ScalarValue, Value, ROOT};
+use automerge::{AutoCommit, AutomergeError, Change, ObjId, ObjType, ReadDoc, ScalarValue, Value, ROOT};
 use automerge::transaction::Transactable;
 use crate::network::send_changes_to_peer;
 use crate::peer::SharedPeers;
@@ -161,9 +161,11 @@ impl CrdtToDoList {
         }
         let have_deps = sync_state.get_have_deps();
         let changes = self.doc.get_changes(&have_deps);
-        let peers = shared_peers.lock().unwrap();
-        for (peer_id, peer) in peers.iter() {
-            if let Err(e) = send_changes_to_peer(peer, &changes).await {
+        let owned_changes: Vec<Change> = changes.iter().map(|c| (*c).to_owned()).collect();
+        let slice: &[Change] = &owned_changes;
+        let peers = shared_peers.lock();
+        for (peer_id, peer) in peers.await.iter() {
+            if let Err(e) = send_changes_to_peer(peer, slice).await {
                 eprintln!("Failed to send changes to {}: {}", peer_id.id, e);
             }
         }

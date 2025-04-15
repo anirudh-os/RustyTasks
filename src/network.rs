@@ -111,8 +111,8 @@ async fn handle_connection(mut socket: TcpStream, address: SocketAddr, shared_pe
             };
 
             {
-                let mut peers = shared_peers.lock().unwrap();
-                peers.insert(peer_id.clone(), peer);
+                let peers = shared_peers.lock();
+                peers.await.insert(peer_id.clone(), peer);
             }
 
             // println!("Registered peer '{}' from {}", handshake.peer_id, address);
