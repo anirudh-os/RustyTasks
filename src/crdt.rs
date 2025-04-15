@@ -134,8 +134,21 @@ impl CrdtToDoList {
         Ok(())
     }
 
+    pub fn remove_task_offline(&mut self, index:usize) -> Result<(), AutomergeError>{
+        self.doc.delete(&self.list_id, index)
+    }
+
     pub fn remove_task(&mut self, index:usize) -> Result<(), AutomergeError>{
         self.doc.delete(&self.list_id, index)
+    }
+
+    pub fn mark_done_offline(&mut self, index: usize) -> Result<(), AutomergeError> {
+        if index >= self.task_entries.len() {
+            println!("Invalid index: {}", index);
+            return Ok(());
+        }
+        let task_id = &self.task_entries[index].obj_id;
+        self.doc.put(task_id, "status", true)
     }
 
     pub fn mark_done(&mut self, index: usize) -> Result<(), AutomergeError> {

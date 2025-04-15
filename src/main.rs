@@ -47,7 +47,7 @@ async fn main() {
 
         Some(Commands::Remove { index }) => {
             Task::remove_task(&mut todo, *index);
-            match crdt.remove_task(*index) {
+            match crdt.remove_task_offline(*index) {
                 Ok(()) => {},
                 Err(e) => println!("An error \"{}\" has occurred!", e),
             };
@@ -55,7 +55,7 @@ async fn main() {
 
         Some(Commands::Done { index }) => {
             Task::mark_done(&mut todo, *index);
-            match crdt.mark_done(*index) {
+            match crdt.mark_done_offline(*index) {
                 Ok(()) => {},
                 Err(e) => println!("An error \"{}\" has occurred!", e),
             };
@@ -72,11 +72,11 @@ async fn main() {
 async fn run_interactive(crdt: &mut CrdtToDoList, todo: &mut Vec<Task>) {
     let shared_peers: SharedPeers = Arc::new(Mutex::new(HashMap::new()));
     let peers_for_network = shared_peers.clone();
-    match connections(peers_for_network).await {
-        Ok(()) => {},
-        Err(e) => println!("No peers are available:{}!", e),
-    }
-
+    tokio::spawn(async move {
+        if let Err(e) = connections(peers_for_network).await {
+            println!("No peers are available: {}!", e);
+        }
+    });
     let identity = Identity::generate();
     let peer_id = identity.derive_peer_id();
     let public_key = identity.public_key;
@@ -157,7 +157,13 @@ async fn run_interactive(crdt: &mut CrdtToDoList, todo: &mut Vec<Task>) {
                 stdin().read_line(&mut input).expect("Failed to read the input!");
                 let ip = input.trim().to_string();
 
-                connect_to_peer(ip.clone(), peer_id.clone(), public_key).await.expect(&format!("Connection to {} could not be established", ip));
+
+
+                tokio::spawn(async move {
+                    if let Err(e) = connect_to_peer(ip.clone(), peer_id.clone(), public_key).await     {
+                        println!("No peers are available: {}!", e);
+                    }
+                });
             },
             6 => {
                 crdt.save_to_file("autocommit_doc.automerge").unwrap();
