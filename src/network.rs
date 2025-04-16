@@ -1,4 +1,3 @@
-use automerge::Change;
 use std::net::SocketAddr;
 use std::str;
 use std::sync::Arc;
@@ -10,11 +9,11 @@ use crate::crdt::CrdtToDoList;
 use crate::peer::{Peer, PeerId, SharedPeers};
 use crate::sync::SyncState;
 use base64::{engine::general_purpose, Engine as _};
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::{Signer, SigningKey, Verifier};
 use rand::random;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type", content = "data")]
 pub enum Message {
     Hello {
@@ -85,6 +84,9 @@ async fn handle_connection(
     crdt: Arc<Mutex<CrdtToDoList>>,
     sync_state: Arc<Mutex<SyncState>>,
 ) {
+    use tokio::sync::mpsc;
+    use crate::peer::PeerId;
+
     let mut buffer = vec![0u8; 4096];
 
     match socket.read(&mut buffer).await {
@@ -128,7 +130,7 @@ async fn handle_connection(
                         }
                     };
 
-                    let verifying_key = match VerifyingKey::from_bytes(&public_key_bytes) {
+                    let verifying_key = match ed25519_dalek::VerifyingKey::from_bytes(&public_key_bytes) {
                         Ok(k) => k,
                         Err(e) => {
                             eprintln!("Invalid verifying key from {}: {}", address, e);
@@ -153,7 +155,7 @@ async fn handle_connection(
                     };
 
                     let signature = match signature_bytes.as_slice().try_into() {
-                        Ok(bytes) => Signature::from_bytes(&bytes),
+                        Ok(bytes) => ed25519_dalek::Signature::from_bytes(&bytes),
                         Err(_) => {
                             eprintln!("Signature must be 64 bytes, got {}", signature_bytes.len());
                             return;
@@ -165,11 +167,33 @@ async fn handle_connection(
                         return;
                     }
 
+
+                    let (_, mut writer) = socket.into_split();
+
+                    let (tx, mut rx) = mpsc::channel::<Message>(100);
+
+                    tokio::spawn(async move {
+                        while let Some(message) = rx.recv().await {
+                            match serde_json::to_vec(&message) {
+                                Ok(serialized) => {
+                                    if let Err(e) = writer.write_all(&serialized).await {
+                                        eprintln!("Failed to send message to {}: {}", address, e);
+                                        break;
+                                    }
+                                }
+                                Err(e) => {
+                                    eprintln!("Serialization error for {}: {}", address, e);
+                                }
+                            }
+                        }
+                    });
+
                     let peer_id = PeerId { id: peer_id.clone() };
                     let peer = Peer {
                         peer_id: peer_id.clone(),
                         address,
                         public_key: public_key_bytes,
+                        sender: Some(tx),
                     };
 
                     {
@@ -191,20 +215,4 @@ async fn handle_connection(
             eprintln!("Failed to read from socket {}: {}", address, e);
         }
     }
-}
-
-
-pub async fn send_changes_to_peer(peer: &Peer, changes: &[Change]) -> Result<(), Box<dyn std::error::Error>> {
-    let mut stream = TcpStream::connect(peer.address).await?;
-
-    let raw_changes: Vec<Vec<u8>> = changes
-        .iter()
-        .map(|c| c.raw_bytes().to_vec())
-        .collect();
-
-    let message = Message::Changes(raw_changes);
-    let serialized = serde_json::to_vec(&message)?;
-    stream.write_all(&serialized).await?;
-
-    Ok(())
 }

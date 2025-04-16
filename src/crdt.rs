@@ -3,7 +3,6 @@ use std::fs::File;
 use std::io::{Read, Write};
 use automerge::{AutoCommit, AutomergeError, Change, ObjId, ObjType, ReadDoc, ScalarValue, Value, ROOT};
 use automerge::transaction::Transactable;
-use crate::network::send_changes_to_peer;
 use crate::peer::SharedPeers;
 use crate::sync::SyncState;
 use crate::tasks::Task;
@@ -135,14 +134,14 @@ impl CrdtToDoList {
     }
 
     pub fn remove_task_offline(&mut self, index:usize) -> Result<(), AutomergeError>{
-        self.doc.delete(&self.list_id, index);
-        self.load_tasks();
+        self.doc.delete(&self.list_id, index)?;
+        self.load_tasks()?;
         Ok(())
     }
 
     pub async fn remove_task(&mut self, index:usize, sync_state: &mut SyncState, shared_peers: &SharedPeers) -> Result<(), AutomergeError>{
         self.doc.delete(&self.list_id, index)?;
-        self.load_tasks();
+        self.load_tasks()?;
         self.send_changes(sync_state, shared_peers).await;
         Ok(())
     }
@@ -153,8 +152,8 @@ impl CrdtToDoList {
             return Ok(());
         }
         let task_id = &self.task_entries[index].obj_id;
-        self.doc.put(task_id, "status", true);
-        self.load_tasks();
+        self.doc.put(task_id, "status", true)?;
+        self.load_tasks()?;
         Ok(())
     }
 
@@ -166,7 +165,7 @@ impl CrdtToDoList {
         let task_id = &self.task_entries[index].obj_id;
         self.doc.put(task_id, "status", true)?;
         self.send_changes(sync_state, shared_peers).await;
-        self.load_tasks();
+        self.load_tasks()?;
         Ok(())
     }
 
@@ -177,22 +176,30 @@ impl CrdtToDoList {
         Ok(())
     }
 
-    async fn send_changes(&mut self, sync_state: &mut SyncState, shared_peers: &SharedPeers) {
+    pub async fn send_changes(&mut self, sync_state: &mut SyncState, shared_peers: &SharedPeers) {
         let heads = self.doc.get_heads();
         for head in heads {
             sync_state.add_received_change(head);
         }
+
         let have_deps = sync_state.get_have_deps();
         let changes = self.doc.get_changes(&have_deps);
         let owned_changes: Vec<Change> = changes.iter().map(|c| (*c).to_owned()).collect();
-        let slice: &[Change] = &owned_changes;
-        let peers = shared_peers.lock();
-        for (peer_id, peer) in peers.await.iter() {
-            if let Err(e) = send_changes_to_peer(peer, slice).await {
-                eprintln!("Failed to send changes to {}: {}", peer_id.id, e);
+
+        let raw_changes: Vec<Vec<u8>> = owned_changes.iter().map(|c| c.raw_bytes().to_vec()).collect();
+        let message = crate::network::Message::Changes(raw_changes); // Make sure Message is in scope
+
+        let peers = shared_peers.lock().await;
+
+        for (peer_id, peer) in peers.iter() {
+            if let Some(sender) = &peer.sender {
+                if let Err(e) = sender.send(message.clone()).await {
+                    eprintln!("Failed to send changes to {}: {}", peer_id.id, e);
+                }
+            } else {
+                eprintln!("No sender channel found for peer: {}", peer_id.id);
             }
         }
-
     }
     pub async fn apply_changes_from_bytes(
         &mut self,
