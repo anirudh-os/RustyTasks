@@ -1,16 +1,18 @@
-use std::str;
-use std::net::SocketAddr;
-use std::sync::{Arc};
 use automerge::Change;
+use std::net::SocketAddr;
+use std::str;
+use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
 
-use base64::{engine::general_purpose, Engine as _};
-use serde::{Deserialize, Serialize};
 use crate::crdt::CrdtToDoList;
 use crate::peer::{Peer, PeerId, SharedPeers};
 use crate::sync::SyncState;
+use base64::{engine::general_purpose, Engine as _};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use rand::random;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data")]
@@ -18,12 +20,13 @@ pub enum Message {
     Hello {
         peer_id: String,
         public_key: String,
+        challenge: String,
+        signature: String,
     },
-    Changes(Vec<Vec<u8>>),
-    // Add more message types here, like Ping, RequestState, etc.
+    Changes(Vec<Vec<u8>>), // Check if it is Vec<u8>
 }
 
-pub async fn connect_to_peer(target_ip: String, local_peer_id: PeerId, public_key: [u8; 32]) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn connect_to_peer(target_ip: String, local_peer_id: PeerId, public_key: [u8; 32], private_key: [u8; 32]) -> Result<(), Box<dyn std::error::Error>> {
     let port = 58008;
     let address = format!("{}:{}", target_ip, port);
     let socket_addr: SocketAddr = address.parse()?;
@@ -34,9 +37,15 @@ pub async fn connect_to_peer(target_ip: String, local_peer_id: PeerId, public_ke
         Ok(mut stream) => {
             println!("Connected to {}", socket_addr);
 
+            let challenge: [u8; 32] = random();
+            let signing_key = SigningKey::from_bytes(&private_key);
+            let signature = signing_key.sign(&challenge);
+
             let hello = Message::Hello {
                 peer_id: local_peer_id.id,
                 public_key: general_purpose::STANDARD.encode(public_key),
+                challenge: general_purpose::STANDARD.encode(challenge),
+                signature: general_purpose::STANDARD.encode(signature.to_bytes()),
             };
 
             let handshake_json = serde_json::to_string(&hello)?;
@@ -101,7 +110,8 @@ async fn handle_connection(
             };
 
             match msg {
-                Message::Hello { peer_id, public_key } => {
+                Message::Hello { peer_id, public_key, challenge, signature } => {
+                    // Decode public key
                     let public_key_bytes = match general_purpose::STANDARD.decode(&public_key) {
                         Ok(bytes) if bytes.len() == 32 => {
                             let mut key = [0u8; 32];
@@ -118,6 +128,43 @@ async fn handle_connection(
                         }
                     };
 
+                    let verifying_key = match VerifyingKey::from_bytes(&public_key_bytes) {
+                        Ok(k) => k,
+                        Err(e) => {
+                            eprintln!("Invalid verifying key from {}: {}", address, e);
+                            return;
+                        }
+                    };
+
+                    let challenge_bytes = match general_purpose::STANDARD.decode(&challenge) {
+                        Ok(bytes) => bytes,
+                        Err(e) => {
+                            eprintln!("Failed to decode challenge from {}: {}", address, e);
+                            return;
+                        }
+                    };
+
+                    let signature_bytes = match general_purpose::STANDARD.decode(&signature) {
+                        Ok(bytes) => bytes,
+                        Err(e) => {
+                            eprintln!("Failed to decode signature from {}: {}", address, e);
+                            return;
+                        }
+                    };
+
+                    let signature = match signature_bytes.as_slice().try_into() {
+                        Ok(bytes) => Signature::from_bytes(&bytes),
+                        Err(_) => {
+                            eprintln!("Signature must be 64 bytes, got {}", signature_bytes.len());
+                            return;
+                        }
+                    };
+
+                    if let Err(e) = verifying_key.verify(&challenge_bytes, &signature) {
+                        eprintln!("Signature verification failed from {}: {}", address, e);
+                        return;
+                    }
+
                     let peer_id = PeerId { id: peer_id.clone() };
                     let peer = Peer {
                         peer_id: peer_id.clone(),
@@ -126,8 +173,8 @@ async fn handle_connection(
                     };
 
                     {
-                        let peers = shared_peers.lock();
-                        peers.await.insert(peer_id.clone(), peer);
+                        let mut peers = shared_peers.lock().await;
+                        peers.insert(peer_id.clone(), peer);
                     }
 
                     println!("Registered peer '{}' from {}", peer_id.id, address);

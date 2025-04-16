@@ -135,11 +135,14 @@ impl CrdtToDoList {
     }
 
     pub fn remove_task_offline(&mut self, index:usize) -> Result<(), AutomergeError>{
-        self.doc.delete(&self.list_id, index)
+        self.doc.delete(&self.list_id, index);
+        self.load_tasks();
+        Ok(())
     }
 
     pub async fn remove_task(&mut self, index:usize, sync_state: &mut SyncState, shared_peers: &SharedPeers) -> Result<(), AutomergeError>{
         self.doc.delete(&self.list_id, index)?;
+        self.load_tasks();
         self.send_changes(sync_state, shared_peers).await;
         Ok(())
     }
@@ -150,7 +153,9 @@ impl CrdtToDoList {
             return Ok(());
         }
         let task_id = &self.task_entries[index].obj_id;
-        self.doc.put(task_id, "status", true)
+        self.doc.put(task_id, "status", true);
+        self.load_tasks();
+        Ok(())
     }
 
     pub async fn mark_done(&mut self, index: usize, sync_state: &mut SyncState, shared_peers: &SharedPeers) -> Result<(), AutomergeError> {
@@ -161,6 +166,7 @@ impl CrdtToDoList {
         let task_id = &self.task_entries[index].obj_id;
         self.doc.put(task_id, "status", true)?;
         self.send_changes(sync_state, shared_peers).await;
+        self.load_tasks();
         Ok(())
     }
 
