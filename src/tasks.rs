@@ -1,4 +1,5 @@
 use std::io::{stdout, BufWriter, Write};
+use crate::crdt::CrdtToDoList;
 
 #[derive(Clone, Debug)]
 pub struct Task {
@@ -51,5 +52,12 @@ impl Task {
         } else {
             "✘ Not Done"
         }
+    }
+}
+
+pub fn update_local_list_from_crdt(crdt: &CrdtToDoList, todo: &mut Vec<Task>) {
+    todo.clear();
+    for entry in &crdt.task_entries {
+        todo.push(entry.task.clone());
     }
 }

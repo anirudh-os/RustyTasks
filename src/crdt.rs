@@ -62,6 +62,7 @@ impl CrdtToDoList {
     }
 
     pub fn add_task_offline(&mut self, task: &Task) -> Result<(), AutomergeError>{
+        println!("Adding task to CRDT: {}", task.name);
         let index = self.doc.length(&self.list_id);
         let task_obj = self.doc.insert_object(&self.list_id, index, ObjType::Map)?;
         self.doc.put(&task_obj, "name", task.name.clone())?;
@@ -77,6 +78,7 @@ impl CrdtToDoList {
     }
 
     pub async fn add_task(&mut self, task: &Task, sync_state: &mut SyncState, shared_peers: &SharedPeers) -> Result<(), AutomergeError>{
+        println!("Adding task to CRDT: {}", task.name);
         let index = self.doc.length(&self.list_id);
         let task_obj = self.doc.insert_object(&self.list_id, index, ObjType::Map)?;
         self.doc.put(&task_obj, "name", task.name.clone())?;
@@ -134,12 +136,14 @@ impl CrdtToDoList {
     }
 
     pub fn remove_task_offline(&mut self, index:usize) -> Result<(), AutomergeError>{
+        println!("Removing the task from CRDT");
         self.doc.delete(&self.list_id, index)?;
         self.load_tasks()?;
         Ok(())
     }
 
     pub async fn remove_task(&mut self, index:usize, sync_state: &mut SyncState, shared_peers: &SharedPeers) -> Result<(), AutomergeError>{
+        println!("Removing the task from CRDT");
         self.doc.delete(&self.list_id, index)?;
         self.load_tasks()?;
         self.send_changes(sync_state, shared_peers).await;
@@ -147,6 +151,7 @@ impl CrdtToDoList {
     }
 
     pub fn mark_done_offline(&mut self, index: usize) -> Result<(), AutomergeError> {
+        println!("Marking the task done");
         if index >= self.task_entries.len() {
             println!("Invalid index: {}", index);
             return Ok(());
@@ -158,6 +163,7 @@ impl CrdtToDoList {
     }
 
     pub async fn mark_done(&mut self, index: usize, sync_state: &mut SyncState, shared_peers: &SharedPeers) -> Result<(), AutomergeError> {
+        println!("Marking the task done");
         if index >= self.task_entries.len() {
             println!("Invalid index: {}", index);
             return Ok(());

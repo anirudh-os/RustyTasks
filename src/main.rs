@@ -18,6 +18,7 @@ use tokio::sync::Mutex;
 use identity::Identity;
 use network::{connect_to_peer, connections};
 use peer::SharedPeers;
+use crate::tasks::update_local_list_from_crdt;
 
 #[tokio::main]
 async fn main() {
@@ -118,8 +119,8 @@ async fn run_interactive(todo: &mut Vec<Task>) {
                 stdout().flush().unwrap();
                 let mut task_name = String::new();
                 stdin().read_line(&mut task_name).expect("Failed to read line.");
-                Task::add_task(todo, task_name.trim().to_string());
 
+                Task::add_task(todo, task_name.clone());
                 if let Some(task) = todo.last() {
                     let mut crdt_guard = crdt.lock().await;
                     let mut sync = sync_state.lock().await;
@@ -129,7 +130,9 @@ async fn run_interactive(todo: &mut Vec<Task>) {
                         Ok(()) => {},
                         Err(e) => println!("An error \"{}\" has occurred!", e),
                     }
+                    update_local_list_from_crdt(&crdt_guard, todo);
                 }
+                crdt.lock().await.save_to_file("autocommit_doc.automerge").unwrap()
             },
             2 => {
                 print!("Enter task ID to remove: ");
@@ -138,7 +141,6 @@ async fn run_interactive(todo: &mut Vec<Task>) {
                 stdin().read_line(&mut input).expect("Failed to read line.");
 
                 if let Ok(index) = input.trim().parse::<usize>() {
-                    Task::remove_task(todo, index);
                     let mut crdt_guard = crdt.lock().await;
                     let mut sync = sync_state.lock().await;
                     let peers = &shared_peers;
@@ -147,9 +149,11 @@ async fn run_interactive(todo: &mut Vec<Task>) {
                         Ok(()) => {},
                         Err(e) => println!("An error \"{}\" has occurred!", e),
                     }
+                    update_local_list_from_crdt(&crdt_guard, todo);
                 } else {
                     println!("Invalid input. Please enter a valid ID.");
                 }
+                crdt.lock().await.save_to_file("autocommit_doc.automerge").unwrap()
             },
             3 => {
                 print!("Enter task ID to mark as done: ");
@@ -158,7 +162,6 @@ async fn run_interactive(todo: &mut Vec<Task>) {
                 stdin().read_line(&mut input).expect("Failed to read line.");
 
                 if let Ok(index) = input.trim().parse::<usize>() {
-                    Task::mark_done(todo, index);
                     let mut crdt_guard = crdt.lock().await;
                     let mut sync = sync_state.lock().await;
                     let peers = &shared_peers;
@@ -167,9 +170,11 @@ async fn run_interactive(todo: &mut Vec<Task>) {
                         Ok(()) => {},
                         Err(e) => { println!("An error \"{}\" has occurred!", e) },
                     }
+                    update_local_list_from_crdt(&crdt_guard, todo);
                 } else {
                     println!("Invalid input. Please enter a valid ID.");
                 }
+                crdt.lock().await.save_to_file("autocommit_doc.automerge").unwrap()
             },
             4 => {
                 Task::list_tasks(todo);
