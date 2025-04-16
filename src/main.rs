@@ -23,43 +23,43 @@ use crate::tasks::update_local_list_from_crdt;
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
-    let mut crdt = match CrdtToDoList::new(Some("autocommit_doc.automerge")) {
-        Ok(doc) => doc,
-        Err(e) => {
+
+    // Wrap crdt in Arc<Mutex<>> immediately
+    let crdt_arc = Arc::new(Mutex::new(
+        CrdtToDoList::new(Some("autocommit_doc.automerge")).unwrap_or_else(|e| {
             eprintln!("Failed to initialize CRDT document: {e}");
             std::process::exit(1);
-        }
-    };
+        }),
+    ));
 
-    let mut todo: Vec<Task> = crdt.task_entries.iter().map(|e| e.task.clone()).collect();
+    let mut todo: Vec<Task> = crdt_arc.lock().await.task_entries.iter().map(|e| e.task.clone()).collect();
 
     match &cli.command {
         Some(Commands::Interactive) | None => {
-            run_interactive(&mut todo).await;
+            run_interactive(&mut todo, crdt_arc.clone()).await;
         }
 
         Some(Commands::Add { name }) => {
             Task::add_task(&mut todo, name.trim().to_string());
-            match crdt.add_task_offline(todo.last().unwrap()) {
-                Ok(()) => {},
-                Err(e) => println!("An error \"{}\" has occurred!", e),
-            };
+            if let Some(task) = todo.last() {
+                crdt_arc.lock().await.add_task_offline(task).unwrap_or_else(|e| {
+                    println!("An error \"{}\" has occurred!", e);
+                });
+            }
         }
 
         Some(Commands::Remove { index }) => {
             Task::remove_task(&mut todo, *index);
-            match crdt.remove_task_offline(*index) {
-                Ok(()) => {},
-                Err(e) => println!("An error \"{}\" has occurred!", e),
-            };
+            crdt_arc.lock().await.remove_task_offline(*index).unwrap_or_else(|e| {
+                println!("An error \"{}\" has occurred!", e);
+            });
         }
 
         Some(Commands::Done { index }) => {
             Task::mark_done(&mut todo, *index);
-            match crdt.mark_done_offline(*index) {
-                Ok(()) => {},
-                Err(e) => println!("An error \"{}\" has occurred!", e),
-            };
+            crdt_arc.lock().await.mark_done_offline(*index).unwrap_or_else(|e| {
+                println!("An error \"{}\" has occurred!", e);
+            });
         }
 
         Some(Commands::List) => {
@@ -67,14 +67,10 @@ async fn main() {
         }
     }
 
-    crdt.save_to_file("autocommit_doc.automerge").unwrap()
+    crdt_arc.lock().await.save_to_file("autocommit_doc.automerge").unwrap();
 }
 
-async fn run_interactive(todo: &mut Vec<Task>) {
-    let crdt = Arc::new(Mutex::new(
-        CrdtToDoList::new(Some("autocommit_doc.automerge"))
-            .expect("Failed to load CRDT document"),
-    ));
+async fn run_interactive(todo: &mut Vec<Task>, crdt: Arc<Mutex<CrdtToDoList>>) {
     let crdt_for_network = crdt.clone();
 
     let shared_peers: SharedPeers = Arc::new(Mutex::new(HashMap::new()));
@@ -186,10 +182,21 @@ async fn run_interactive(todo: &mut Vec<Task>) {
                 let ip = input.trim().to_string();
 
                 let peer_id_clone = peer_id.clone();
+                let shared_peers_clone = shared_peers.clone();
+                let crdt_clone = crdt.clone();
+                let sync_state_clone = sync_state.clone();
 
                 tokio::spawn(async move {
-                    if let Err(e) = connect_to_peer(ip.clone(), peer_id_clone, public_key, private_key).await     {
-                        println!("No peers are available: {}!", e);
+                    if let Err(e) = connect_to_peer(
+                        ip.clone(),
+                        peer_id_clone,
+                        public_key,
+                        private_key,
+                        shared_peers_clone,
+                        crdt_clone,
+                        sync_state_clone,
+                    ).await {
+                        println!("Failed to connect to peer {}: {}", ip, e);
                     }
                 });
             },
