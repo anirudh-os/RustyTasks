@@ -202,7 +202,8 @@ pub async fn send_changes_to_peer(peer: &Peer, changes: &[Change]) -> Result<(),
         .map(|c| c.raw_bytes().to_vec())
         .collect();
 
-    let serialized = serde_json::to_vec(&raw_changes)?;
+    let message = Message::Changes(raw_changes);
+    let serialized = serde_json::to_vec(&message)?;
     stream.write_all(&serialized).await?;
 
     Ok(())
