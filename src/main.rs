@@ -89,7 +89,7 @@ async fn run_interactive(todo: &mut Vec<Task>, crdt: Arc<Mutex<CrdtToDoList>>) {
     // let private_key = identity.private_key;
 
     loop {
-        let crdt_guard = crdt.lock().await;
+        let mut crdt_guard = crdt.lock().await;
         update_local_list_from_crdt(&crdt_guard, todo);
         println!("\n1. Add a Task");
         println!("2. Remove a Task");
@@ -175,6 +175,8 @@ async fn run_interactive(todo: &mut Vec<Task>, crdt: Arc<Mutex<CrdtToDoList>>) {
                 crdt.lock().await.save_to_file("autocommit_doc.automerge").unwrap()
             },
             4 => {
+                let crdt_guard = crdt.lock().await;
+                update_local_list_from_crdt(&crdt_guard, todo);
                 Task::list_tasks(todo);
             },
             5 => {
