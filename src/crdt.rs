@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use automerge::{AutoCommit, AutomergeError, Change, ObjId, ObjType, ReadDoc, ScalarValue, Value, ROOT};
 use automerge::transaction::Transactable;
+use crate::network::Message;
 use crate::peer::SharedPeers;
 use crate::sync::SyncState;
 use crate::tasks::Task;
@@ -182,21 +183,24 @@ impl CrdtToDoList {
         Ok(())
     }
 
-    pub async fn send_changes(&mut self, sync_state: &mut SyncState, shared_peers: &SharedPeers) {
-        let heads = self.doc.get_heads();
-        for head in heads {
-            sync_state.add_received_change(head);
-        }
-
+    pub async fn send_changes(
+        &mut self,
+        sync_state: &mut SyncState,
+        shared_peers: &SharedPeers,
+    ) {
         let have_deps = sync_state.get_have_deps();
+    
         let changes = self.doc.get_changes(&have_deps);
         let owned_changes: Vec<Change> = changes.iter().map(|c| (*c).to_owned()).collect();
-
         let raw_changes: Vec<Vec<u8>> = owned_changes.iter().map(|c| c.raw_bytes().to_vec()).collect();
-        let message = crate::network::Message::Changes(raw_changes); // Make sure Message is in scope
-
+    
+        if raw_changes.is_empty() {
+            return;
+        }
+    
+        let message = Message::Changes(raw_changes);
+    
         let peers = shared_peers.lock().await;
-
         for (peer_id, peer) in peers.iter() {
             if let Some(sender) = &peer.sender {
                 if let Err(e) = sender.send(message.clone()).await {
@@ -206,7 +210,12 @@ impl CrdtToDoList {
                 eprintln!("No sender channel found for peer: {}", peer_id.id);
             }
         }
-    }
+    
+        for change in owned_changes {
+            sync_state.add_received_change(change.hash());
+        }
+    }    
+
     pub async fn apply_changes_from_bytes(
         &mut self,
         raw_changes: Vec<Vec<u8>>,
