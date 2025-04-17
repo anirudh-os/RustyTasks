@@ -86,7 +86,7 @@ async fn run_interactive(todo: &mut Vec<Task>, crdt: Arc<Mutex<CrdtToDoList>>) {
     let identity = Identity::generate();
     let peer_id = identity.derive_peer_id();
     let public_key = identity.public_key;
-    let private_key = identity.private_key;
+    // let private_key = identity.private_key;
 
     loop {
         println!("\n1. Add a Task");
@@ -191,7 +191,6 @@ async fn run_interactive(todo: &mut Vec<Task>, crdt: Arc<Mutex<CrdtToDoList>>) {
                         ip.clone(),
                         peer_id_clone,
                         public_key,
-                        private_key,
                         shared_peers_clone,
                         crdt_clone,
                         sync_state_clone,
