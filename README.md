@@ -1,59 +1,92 @@
 # RustyTasks
 
-RustyTasks is a peer-to-peer, CRDT-backed command-line To-Do List application written in Rust. It builds on core Rust principles while experimenting with distributed state synchronization using [Automerge](https://github.com/automerge/automerge).
+A peer-to-peer, CRDT‑backed command‑line To‑Do list application written in Rust. RustyTasks leverages [Automerge](https://github.com/automerge/automerge) for conflict‑free data replication and experiments with secure, decentralized synchronization over TCP using [tokio](https://tokio.rs/).
+
+---
 
 ## Features
 
-- Add new tasks
-- Remove tasks by index
-- Mark tasks as completed
-- List all tasks with their status
-- CRDT-backed storage using Automerge
-- Persistence across sessions via save/load
-- (WIP) Peer-to-peer synchronization
+- **CRUD Tasks**: Create, read, update (mark done), and delete tasks.
+- **CRDT Sync**: Underlying Automerge document for conflict‑free merges.
+- **Persistence**: Automatic save/load of task history to disk.
+- **P2P Networking**: Secure synchronization between peers via TCP.
+- **Asynchronous**: Uses tokio for efficient and non-blocking communication
+- **Extensible**: Modular `tasks`, `crdt`, and `network` components.
+- **Offline support**: This can be used offline as a standalone application.
 
-## How to Run
+---
 
-1. Ensure you have Rust installed: [https://www.rust-lang.org/tools/install](https://www.rust-lang.org/tools/install)
-2. Clone this repository:
-   ```sh
-   git clone https://github.com/anirudh-os/RustyTasks.git
-   cd RustyTasks
-   ```
-3. Build and run the app:
-   ```sh
-   cargo run
-   ```
+## Usage
+
+```text
+USAGE:
+    rustytasks [OPTIONS]
+
+COMMANDS:
+    --interactive            Start the application in the interactive mode
+    --list                   List all tasks
+    --add <TASK>             Add a task to the task-list
+    --remove <TASKID>        Remove a task from the task-list
+    --done <TASKID>          Mark a task as done
+OPTIONS:
+    -h, --help               Print help information
+```
+
+### Local/Offline Mode
+
+Run any command except `--interactive` to use the application offline.
+
+### P2P/Interactive Mode
+
+- User can connect to peer(s) using the IP address(es) of the peer(s).
+- Peers will perform a handshake, exchange Automerge state, and merge tasks.
+- The changes will be sent everytime a command is run while in the interactive mode.
+
+---
+
+## Configuration
+
+- Default data file: `tasks.automerge` in current directory.
+
+---
 
 ## Directory Structure
 
-- `main.rs`: CLI interface and interactive loop
-- `tasks.rs`: Task definition and core logic
-- `crdt.rs`: Automerge-based CRDT implementation
-- `network.rs`: (WIP) Handles peer-to-peer communication
+```
+├── Cargo.toml      # Project metadata & dependencies
+├── src
+│   ├── main.rs     # CLI & entry point
+│   ├── tasks.rs    # Task struct & operations
+│   ├── crdt.rs     # Automerge integration
+│   └── network.rs  # P2P networking (WIP)
+|   └── identity.rs # Creates an identity for the peer
+|   └── cli.rs      # clap config for cli
+|   └── sync.rs     # Synchronization related functionality
+|   └── tasks.rs    # Manages the local Task vector
+```
 
-## Built With Rust Concepts
+---
 
-- Structs and enums to model task data
-- Vectors and ownership-safe iteration
-- Pattern matching for input handling
-- Borrowing and lifetime safety
-- Error handling with `Result` and `Option`
-- External crate integration (`automerge`)
+## Roadmap
 
-## Future Enhancements
+- [ ] Automatic peer discovery
+- [ ] Enhanced conflict resolution
+- [ ] Task priorities & due dates
+- [ ] Reminder/notification support
+- [ ] Optional TUI (via `tui-rs`)
 
-- **Peer-to-peer sync:** Automatic CRDT state sharing over TCP
-- **Conflict resolution:** CRDT-based merge guarantees
-- **Task Prioritization:** Add priority levels and sorting
-- **Due Dates and Reminders**
-- **Filtering Options:** View only completed or pending tasks
-- **Optional TUI:** Terminal interface using `tui-rs`
+---
 
 ## Contributing
 
-Contributions are welcome! Feel free to fork the repository, open issues, or submit pull requests for improvements or features.
+Contributions are welcome! Please:
 
-## License
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feature/YourFeature`).
+3. Commit your changes (`git commit -m 'Add YourFeature'`).
+4. Push to the branch (`git push origin feature/YourFeature`).
+5. Open a Pull Request.
 
-This project is open-source and available under the MIT License.
+---
+
+*Happy tasking with RustyTasks!*
