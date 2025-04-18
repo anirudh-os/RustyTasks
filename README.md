@@ -46,7 +46,7 @@ Run any command except `--interactive` to use the application offline.
 
 ## Configuration
 
-- Default data file: `tasks.automerge` in current directory.
+- Default data file: `autocommit_doc.automerge` in current directory.
 
 ---
 
