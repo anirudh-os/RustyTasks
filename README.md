@@ -38,9 +38,7 @@ Run any command except `--interactive` to use the application offline.
 
 ### P2P/Interactive Mode
 
-- User can connect to peer(s) using the IP address(es) of the peer(s).
-- Peers will perform a handshake, exchange Automerge state, and merge tasks.
-- The changes will be sent everytime a command is run while in the interactive mode.
+Run `--interactive` or run without any option to use the online mode.
 
 ---
 
