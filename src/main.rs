@@ -89,8 +89,6 @@ async fn run_interactive(todo: &mut Vec<Task>, crdt: Arc<Mutex<CrdtToDoList>>) {
     // let private_key = identity.private_key;
 
     loop {
-        let mut crdt_guard = crdt.lock().await;
-        update_local_list_from_crdt(&crdt_guard, todo);
         println!("\n1. Add a Task");
         println!("2. Remove a Task");
         println!("3. Mark a Task as done");
