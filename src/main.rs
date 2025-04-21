@@ -198,7 +198,7 @@ async fn run_interactive(todo: &mut Vec<Task>, crdt: Arc<Mutex<CrdtToDoList>>) {
                     }
                 });
             },
-            6 => {
+            5 => {
                 crdt.lock().await.save_to_file("autocommit_doc.automerge").unwrap();
                 println!("Thank you for using the to-do list!");
                 break;
