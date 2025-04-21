@@ -94,7 +94,7 @@ async fn run_interactive(todo: &mut Vec<Task>, crdt: Arc<Mutex<CrdtToDoList>>) {
         println!("3. Mark a Task as done");
         println!("4. List all tasks");
         println!("5. Connect to a Peer");
-        println!("5. Quit");
+        println!("6. Quit");
         print!("Enter your choice: ");
         stdout().flush().unwrap();
 
