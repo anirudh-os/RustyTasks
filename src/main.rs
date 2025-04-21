@@ -92,7 +92,8 @@ async fn run_interactive(todo: &mut Vec<Task>, crdt: Arc<Mutex<CrdtToDoList>>) {
         println!("\n1. Add a Task");
         println!("2. Remove a Task");
         println!("3. Mark a Task as done");
-        println!("4. Connect to a Peer");
+        println!("4. List all tasks");
+        println!("5. Connect to a Peer");
         println!("5. Quit");
         print!("Enter your choice: ");
         stdout().flush().unwrap();
@@ -171,10 +172,12 @@ async fn run_interactive(todo: &mut Vec<Task>, crdt: Arc<Mutex<CrdtToDoList>>) {
                 }
                 crdt.lock().await.save_to_file("autocommit_doc.automerge").unwrap()
             },
-            // 4 => {
-            //     Task::list_tasks(todo);
-            // },
             4 => {
+               let crdt_guard = crdt.lock().await;
+               update_local_list_from_crdt(&crdt_guard, todo);
+                Task::list_tasks(todo);
+            },
+            5 => {
                 println!("Enter the IP Address of the Peer: ");
                 let mut input = String::new();
                 stdin().read_line(&mut input).expect("Failed to read the input!");
@@ -198,7 +201,7 @@ async fn run_interactive(todo: &mut Vec<Task>, crdt: Arc<Mutex<CrdtToDoList>>) {
                     }
                 });
             },
-            5 => {
+            6 => {
                 crdt.lock().await.save_to_file("autocommit_doc.automerge").unwrap();
                 println!("Thank you for using the to-do list!");
                 break;

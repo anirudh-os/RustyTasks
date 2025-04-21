@@ -40,7 +40,7 @@ impl Task {
         writeln!(writer, "{}", "-".repeat(50)).unwrap();
 
         for (index, task) in todo.iter().enumerate() {
-            writeln!(writer, "{:<5} {:<30} {}", index, task.name, task.status_string()).unwrap();
+            writeln!(writer, "{:<5} {:<30} {}", index, task.name.trim_end(), task.status_string()).unwrap();
         }
 
         writer.flush().unwrap();
