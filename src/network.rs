@@ -20,8 +20,8 @@ pub enum Message {
         public_key: String,
     },
     Changes(Vec<Vec<u8>>),
-    Ping,
-    Pong,
+    // Ping,
+    // Pong,
 }
 
 async fn verify_handshake(
@@ -103,16 +103,16 @@ pub async fn connect_to_peer(
     });
 
     // Send periodic Pings
-    {
-        let ping_tx = tx.clone();
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
-            loop {
-                interval.tick().await;
-                if ping_tx.send(Message::Ping).await.is_err() { break; }
-            }
-        });
-    }
+    // {
+    //     let ping_tx = tx.clone();
+    //     tokio::spawn(async move {
+    //         let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+    //         loop {
+    //             interval.tick().await;
+    //             if ping_tx.send(Message::Ping).await.is_err() { break; }
+    //         }
+    //     });
+    // }
 
     // Read & handle incoming messages
     let mut buffer = vec![0; 4096];
@@ -142,12 +142,12 @@ pub async fn connect_to_peer(
                             let mut st   = sync_state.lock().await;
                             crdt.apply_changes_from_bytes(chs, &mut st).await;
                         }
-                        Message::Ping => {
-                            let _ = tx.send(Message::Pong).await;
-                        }
-                        Message::Pong => {
-                            println!("Pong from {}", addr);
-                        }
+                        // Message::Ping => {
+                        //     let _ = tx.send(Message::Pong).await;
+                        // }
+                        // Message::Pong => {
+                        //     println!("Pong from {}", addr);
+                        // }
                     }
                 }
             }
@@ -204,16 +204,16 @@ async fn handle_connection(
     });
 
     // spawn ping task
-    {
-        let ping_tx = tx.clone();
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
-            loop {
-                interval.tick().await;
-                if ping_tx.send(Message::Ping).await.is_err() { break; }
-            }
-        });
-    }
+    // {
+    //     let ping_tx = tx.clone();
+    //     tokio::spawn(async move {
+    //         let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+    //         loop {
+    //             interval.tick().await;
+    //             if ping_tx.send(Message::Ping).await.is_err() { break; }
+    //         }
+    //     });
+    // }
 
     // reader loop (same as above)
     let mut buffer = vec![0; 4096];
@@ -241,10 +241,10 @@ async fn handle_connection(
                                     let mut st   = sync_state.lock().await;
                                     crdt.apply_changes_from_bytes(chs, &mut st).await;
                                 }
-                                Message::Ping => {
-                                    let _ = tx.send(Message::Pong).await;
-                                }
-                                Message::Pong => {}
+                                // Message::Ping => {
+                                //     let _ = tx.send(Message::Pong).await;
+                                // }
+                                // Message::Pong => {}
                             }
                         }
                     }
