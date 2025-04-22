@@ -176,11 +176,6 @@ impl CrdtToDoList {
         let _ = stdout().flush();
         stdin().read_line(&mut input).expect("Failed to read line");
         show_welcome_screen();
-        println!("{}", "Press Enter to continue...");
-        let mut input = String::new();
-        let _ = stdout().flush();
-        stdin().read_line(&mut input).expect("Failed to read line");
-        show_welcome_screen();
         Ok(())
     }
 
@@ -194,6 +189,11 @@ impl CrdtToDoList {
         self.doc.put(task_id, "status", true)?;
         self.send_changes(sync_state, shared_peers).await;
         self.load_tasks()?;
+        println!("{}", "Press Enter to continue...");
+        let mut input = String::new();
+        let _ = stdout().flush();
+        stdin().read_line(&mut input).expect("Failed to read line");
+        show_welcome_screen();
         Ok(())
     }
 
