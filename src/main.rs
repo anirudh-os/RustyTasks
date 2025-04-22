@@ -176,8 +176,9 @@ async fn run_interactive(todo: &mut Vec<Task>, crdt: Arc<Mutex<CrdtToDoList>>) {
                 crdt.lock().await.save_to_file("autocommit_doc.automerge").unwrap()
             },
             4 => {
-               let crdt_guard = crdt.lock().await;
-               update_local_list_from_crdt(&crdt_guard, todo);
+                show_welcome_screen();
+                let crdt_guard = crdt.lock().await;
+                update_local_list_from_crdt(&crdt_guard, todo);
                 Task::list_tasks(todo);
             },
             5 => {
