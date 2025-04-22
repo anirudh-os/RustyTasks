@@ -5,6 +5,7 @@ mod network;
 mod peer;
 mod identity;
 mod sync;
+mod display;
 
 use std::collections::HashMap;
 use clap::Parser;
@@ -19,6 +20,7 @@ use identity::Identity;
 use network::{connect_to_peer, connections};
 use peer::SharedPeers;
 use crate::tasks::update_local_list_from_crdt;
+use display::show_welcome_screen;
 
 #[tokio::main]
 async fn main() {
@@ -36,6 +38,7 @@ async fn main() {
 
     match &cli.command {
         Some(Commands::Interactive) | None => {
+            show_welcome_screen();
             run_interactive(&mut todo, crdt_arc.clone()).await;
         }
 
