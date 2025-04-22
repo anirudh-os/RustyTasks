@@ -26,7 +26,7 @@ pub fn show_welcome_screen() {
 
     println!("{}", figure.to_string().bright_cyan().bold());
 
-    println!("{}\n\n", "A CRDT-powered terminal task manager".italic().dimmed());
+    println!("{}\n\n", "A CRDT-powered, P2P terminal task manager".italic().dimmed());
 }
 
 pub fn show_welcome_screen_exit() {
@@ -37,6 +37,6 @@ pub fn show_welcome_screen_exit() {
 
     println!("{}", figure.to_string().bright_cyan().bold());
 
-    println!("{}\n\n", "A CRDT-powered terminal task manager".italic().dimmed());
+    println!("{}\n\n", "A CRDT-powered, P2P terminal task manager".italic().dimmed());
     println!("\n{}", "Thank you for using the to-do list!".blue().bold());
 }
