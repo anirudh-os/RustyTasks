@@ -1,5 +1,5 @@
-use std::io::{stdout, BufWriter, Write};
-use crate::crdt::CrdtToDoList;
+use std::io::{stdin, stdout, BufWriter, Write};
+use crate::{crdt::CrdtToDoList, display::show_welcome_screen};
 
 #[derive(Clone, Debug)]
 pub struct Task {
@@ -44,6 +44,11 @@ impl Task {
         }
 
         writer.flush().unwrap();
+        print!("\n\n{}", "Press Enter to continue...");
+        let mut input = String::new();
+        let _ = std::io::stdout().flush();
+        stdin().read_line(&mut input).expect("Failed to read line");
+        show_welcome_screen();
     }
 
     fn status_string(&self) -> &'static str {

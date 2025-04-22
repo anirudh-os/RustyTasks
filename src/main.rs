@@ -20,7 +20,7 @@ use identity::Identity;
 use network::{connect_to_peer, connections};
 use peer::SharedPeers;
 use crate::tasks::update_local_list_from_crdt;
-use display::show_welcome_screen;
+use display::{show_welcome_screen, show_welcome_screen_exit, show_welcome_screen_start};
 
 #[tokio::main]
 async fn main() {
@@ -38,7 +38,7 @@ async fn main() {
 
     match &cli.command {
         Some(Commands::Interactive) | None => {
-            show_welcome_screen();
+            show_welcome_screen_start();
             run_interactive(&mut todo, crdt_arc.clone()).await;
         }
 
@@ -206,7 +206,7 @@ async fn run_interactive(todo: &mut Vec<Task>, crdt: Arc<Mutex<CrdtToDoList>>) {
             },
             6 => {
                 crdt.lock().await.save_to_file("autocommit_doc.automerge").unwrap();
-                println!("Thank you for using the to-do list!");
+                show_welcome_screen_exit();
                 break;
             },
             _ => {

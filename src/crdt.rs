@@ -1,8 +1,9 @@
 use std::borrow::Cow;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::{stdin, stdout, Read, Write};
 use automerge::{AutoCommit, AutomergeError, Change, ObjId, ObjType, ReadDoc, ScalarValue, Value, ROOT};
 use automerge::transaction::Transactable;
+use crate::display::show_welcome_screen;
 use crate::network::Message;
 use crate::peer::SharedPeers;
 use crate::sync::SyncState;
@@ -79,7 +80,7 @@ impl CrdtToDoList {
     }
 
     pub async fn add_task(&mut self, task: &Task, sync_state: &mut SyncState, shared_peers: &SharedPeers) -> Result<(), AutomergeError>{
-        println!("Adding task to CRDT: {}", task.name);
+        print!("Adding task to CRDT: {}", task.name);
         let index = self.doc.length(&self.list_id);
         let task_obj = self.doc.insert_object(&self.list_id, index, ObjType::Map)?;
         self.doc.put(&task_obj, "name", task.name.clone())?;
@@ -92,6 +93,11 @@ impl CrdtToDoList {
             },
         });
         self.send_changes(sync_state, shared_peers).await;
+        println!("{}", "Press Enter to continue...");
+        let mut input = String::new();
+        let _ = stdout().flush();
+        stdin().read_line(&mut input).expect("Failed to read line");
+        show_welcome_screen();
         Ok(())
     }
 
@@ -148,6 +154,11 @@ impl CrdtToDoList {
         self.doc.delete(&self.list_id, index)?;
         self.load_tasks()?;
         self.send_changes(sync_state, shared_peers).await;
+        println!("{}", "Press Enter to continue...");
+        let mut input = String::new();
+        let _ = stdout().flush();
+        stdin().read_line(&mut input).expect("Failed to read line");
+        show_welcome_screen();
         Ok(())
     }
 
@@ -160,6 +171,11 @@ impl CrdtToDoList {
         let task_id = &self.task_entries[index].obj_id;
         self.doc.put(task_id, "status", true)?;
         self.load_tasks()?;
+        println!("{}", "Press Enter to continue...");
+        let mut input = String::new();
+        let _ = stdout().flush();
+        stdin().read_line(&mut input).expect("Failed to read line");
+        show_welcome_screen();
         Ok(())
     }
 
