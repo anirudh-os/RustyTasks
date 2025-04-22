@@ -176,6 +176,11 @@ impl CrdtToDoList {
         let _ = stdout().flush();
         stdin().read_line(&mut input).expect("Failed to read line");
         show_welcome_screen();
+        println!("{}", "Press Enter to continue...");
+        let mut input = String::new();
+        let _ = stdout().flush();
+        stdin().read_line(&mut input).expect("Failed to read line");
+        show_welcome_screen();
         Ok(())
     }
 
